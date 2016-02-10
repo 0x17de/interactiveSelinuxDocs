@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8"/>
+	<style type="text/css">
+		html, body {
+			margin: 0;
+			padding: 0;
+		}
+		.box {
+			border: 1pt solid;
+			margin: 1em;
+		}
+		.title, .content {
+			padding: 0.1em 0.2em;
+		}
+    .topbar {
+      background: #fff;
+      width: 100%;
+      height: 45pt;
+      margin: 0;
+      padding: 0.3em;
+      position: fixed;
+      top: 0px;
+      border-bottom: 1px solid;
+    }
+    .tablink {
+      position: fixed;
+      text-align: right;
+      top: 0.3em;
+      right: 1.3em;
+    }
+    #list {
+      position: relative;
+      top: 45pt;
+    }
+    		.tbl {
+			display: table;
+		}
+		.tblRow {
+			display: table-row;
+		}
+		.content, .comment {
+			display: table-cell;
+			padding: 0.3em;
+		}
+		.comment {
+			width: 1%;
+		}
+		.tbl {
+			width: 100%;
+			border-top: 1px solid;
+		}
+		.title {
+			cursor: pointer;
+			background: #eee;
+		}
+		.title:hover {
+			background: #ffe;
+		}
+		.filter, .invisible {
+			display: none;
+		}
+	</style>
+	<script type="text/javascript" src="definitions.js"></script>
+	<script type="text/javascript">
+		var contentView;
+		var filterInput;
+		function add(title, obj) {
+			var div = document.createElement('div');
+			var titleDiv = document.createElement('div');
+			var contentDiv = document.createElement('div');
+			var commentDiv = document.createElement('div');
+			var tblDiv = document.createElement('div');
+			var tblRowDiv = document.createElement('div');
+
+			obj.div = div;
+			obj.titleDiv = titleDiv;
+			obj.contentDiv = contentDiv;
+			obj.commentDiv = commentDiv;
+
+			div.classList.add('box');
+			titleDiv.classList.add('title');
+			contentDiv.classList.add('content');
+			commentDiv.classList.add('comment');
+			tblDiv.classList.add('tbl');
+			tblRowDiv.classList.add('tblRow');
+			tblDiv.classList.add('invisible');
+
+			titleDiv.appendChild(document.createTextNode(title));
+
+			var actions = obj.actions;
+			actions = actions
+				.replace(/&/g, "&amp;")
+				.replace(/</g, "&lt;")
+				.replace(/>/g, "&gt;")
+				.replace(/([a-z0-9_]+)/ig, function(x, m) {
+					if (definitions[m] !== void 0)
+						return '<a target="_blank" href="index.html#t='+m+'">'+m+'</a>';
+					return m;
+				});
+
+			var pre = document.createElement('pre');
+			pre.innerHTML = actions;
+			contentDiv.appendChild(pre);
+			var preC = document.createElement('pre');
+			preC.appendChild(document.createTextNode(obj.comments));
+			commentDiv.appendChild(preC);
+			/*for (var i = 0; i < actions.length; ++i) {
+				contentDiv.appendChild(document.createTextNode(actions[i]));
+				contentDiv.appendChild(document.createElement('br'));
+			}*/
+
+			tblDiv.appendChild(contentDiv);
+			tblDiv.appendChild(commentDiv);
+			div.appendChild(titleDiv);
+			tblDiv.appendChild(tblRowDiv);
+			div.appendChild(tblDiv);
+			contentView.appendChild(div);
+
+			titleDiv.addEventListener('click', toggleBox, false);
+		}
+		function toggleBox(e) {
+			var box = e.target.parentNode.getElementsByClassName('tbl')[0];
+			box.classList.toggle('invisible');
+		}
+		applyFilterTimeouts = [];
+		function applyFilterTrigger() {
+			while (applyFilterTimeouts.length > 0)
+				clearTimeout(applyFilterTimeouts.shift());
+			applyFilterTimeouts.push(setTimeout(applyFilter, 1000));
+		}
+		function inputDisable(input, bDisable) {
+			input.disabled = bDisable;
+		}
+		function indicateProgress(bStart) {
+			inputDisable(filterAllInput, bStart);
+			inputDisable(filterTitleInput, bStart);
+			inputDisable(filterContentInput, bStart);
+		}
+		applyFilterRunning = false;
+		function applyFilter() {
+			if (applyFilterRunning) return;
+			indicateProgress(true);
+			applyFilterRunning = true;
+			while (applyFilterTimeouts.length > 0)
+				clearTimeout(applyFilterTimeouts.shift());
+			var textAll = filterAllInput.value;
+			var textTitle = filterTitleInput.value;
+			var textContent = filterContentInput.value;
+			location.hash = '#a='+textAll+'&t='+textTitle+'&c='+textContent;
+			var names = [];
+			for (var i in definitions)
+				names.push(i);
+
+			function compute() {
+				var x = 0;
+				while(names.length > 0) {
+					++x; if (x > 200) break;
+					var title = names.shift();
+					var def = definitions[title];
+					var filter = true;
+				
+					var c = textAll.split(" ");
+					for (var i = 0; i < c.length; ++i) {
+						if (c[i].length > 0 && title.indexOf(c[i]) === -1 && def.actions.indexOf(c[i]) === -1) {
+							filter = false;
+							break;
+						}
+					}
+					var c = textTitle.split(" ");
+					for (var i = 0; i < c.length; ++i) {
+						if (c[i].length > 0 && title.indexOf(c[i]) === -1) {
+							filter = false;
+							break;
+						}
+					}
+					var c = textContent.split(" ");
+					for (var i = 0; i < c.length; ++i) {
+						if (c[i].length > 0 && def.actions.indexOf(c[i]) === -1) {
+							filter = false;
+							break;
+						}
+					}
+
+					if (filter) {
+						def.div.classList.remove('filter');
+					} else {
+						def.div.classList.add('filter');
+					}
+				}
+
+				if (names.length > 0) {
+					setTimeout(compute, 1);
+				} else {
+					applyFilterRunning = false;
+					indicateProgress(false);
+					console.log("Filter applied");
+				}
+			}
+			compute();
+		}
+		function init() {
+			contentView = document.getElementById('list');
+			filterAllInput = document.getElementById('filterAll');
+			filterTitleInput = document.getElementById('filterTitle');
+			filterContentInput = document.getElementById('filterContent');
+			filterAllInput.addEventListener('keyup', applyFilterTrigger, false);
+			filterTitleInput.addEventListener('keyup', applyFilterTrigger, false);
+			filterContentInput.addEventListener('keyup', applyFilterTrigger, false);
+
+			var filter = false;
+			if (location.hash) {
+				var hash = location.hash.substr(1).split("&");
+				for (var i = 0; i < hash.length; ++i) {
+					var hashSplit = hash[i].split('=');
+					if (hashSplit[0] == 'a') {
+						filterAllInput.value = hashSplit[1];
+						filter = true;
+					}
+					if (hashSplit[0] == 't') {
+						filterTitleInput.value = hashSplit[1];
+						filter = true;
+					}
+					if (hashSplit[0] == 'c') {
+						filterContentInput.value = hashSplit[1];
+						filter = true;
+					}
+				}
+			}
+
+			var names = [];
+			for(var i in definitions)
+				names.push(i);
+			names.sort();
+
+			for(var i = 0; i < names.length; ++i) {
+				var def = definitions[names[i]];
+				add(names[i], def);
+			}
+
+			if (filter) {
+				applyFilter();
+
+				var f = definitions[filterTitleInput.value];
+				if (f) toggleBox({target: f.titleDiv});
+			}
+		}
+		window.addEventListener('load', init, false);
+	</script>
+</head>
+<body>
+	<div id="list">
+	</div>
+  <div class="topbar">
+  	Use space as separator for multiple required substrings.
+	<div style="height:3px"></div>
+  	All: <input id="filterAll" autocomplete="off" /> Title: <input id="filterTitle" autocomplete="off" /> Content: <input id="filterContent" autocomplete="off" /><br/>
+	<div style="height:3px"></div>
+  	Click an entry's titlebar to view details.
+  </div>
+  <div class="tablink">
+    <a href="index.html" target="_blank">New Tab</a><br/>
+    <a href="https://gitweb.gentoo.org/proj/hardened-refpolicy.git" target="_blank">Policy Sources</a>
+  </div>
+</body>
+</html>
